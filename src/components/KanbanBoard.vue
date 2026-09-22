@@ -3,8 +3,9 @@ import { ref } from 'vue'
 import { useTasks } from '../composables/useTasks'
 import TaskCard from './TaskCard.vue'
 import TaskForm from './TaskForm.vue'
+import ConfirmDialog from './ConfirmDialog.vue'
 
-const { tasks, addTask, deleteTask, getTasksByStatus } = useTasks()
+const { tasks, addTask, updateTask, deleteTask, moveTask, getTasksByStatus } = useTasks()
 
 const statuses = [
   { key: 'todo', label: '待办' },
@@ -12,8 +13,21 @@ const statuses = [
   { key: 'done', label: '完成' },
 ]
 
+const statusColors = {
+  todo: 'border-t-blue-500',
+  'in-progress': 'border-t-amber-500',
+  done: 'border-t-emerald-500',
+}
+
 const showForm = ref(false)
 const editingTask = ref(null)
+
+// Confirm dialog state
+const confirmVisible = ref(false)
+const confirmTask = ref(null)
+
+// Drag-over state
+const dragOverCol = ref(null)
 
 function openNew() {
   editingTask.value = null
@@ -27,58 +41,75 @@ function openEdit(task) {
 
 function handleSave(data) {
   if (data.id) {
-    const idx = tasks.findIndex((t) => t.id === data.id)
-    if (idx !== -1) {
-      tasks[idx].title = data.title
-      tasks[idx].description = data.description
-      tasks[idx].priority = data.priority
-      tasks[idx].updatedAt = new Date().toISOString()
-    }
+    updateTask(data.id, {
+      title: data.title,
+      description: data.description,
+      priority: data.priority,
+    })
   } else {
     addTask(data)
   }
 }
 
-function handleDelete(task) {
-  if (confirm(`确定删除「${task.title}」？`)) {
-    deleteTask(task.id)
+function askDelete(task) {
+  confirmTask.value = task
+  confirmVisible.value = true
+}
+
+function handleConfirmDelete() {
+  if (confirmTask.value) {
+    deleteTask(confirmTask.value.id)
+    confirmTask.value = null
   }
+  confirmVisible.value = false
 }
 
 function onDragStart(e, task) {
   e.dataTransfer.setData('text/plain', JSON.stringify({ id: task.id, status: task.status }))
   e.dataTransfer.effectAllowed = 'move'
+  e.target.classList.add('opacity-50')
+}
+
+function onDragEnd(e) {
+  e.target.classList.remove('opacity-50')
+  dragOverCol.value = null
 }
 
 function onDrop(e, targetStatus) {
   e.preventDefault()
+  dragOverCol.value = null
   try {
     const data = JSON.parse(e.dataTransfer.getData('text/plain'))
-    const task = tasks.find((t) => t.id === data.id)
-    if (task && task.status !== targetStatus) {
-      task.status = targetStatus
-      task.updatedAt = new Date().toISOString()
+    if (data.status !== targetStatus) {
+      moveTask(data.id, targetStatus)
     }
   } catch {
     // ignore bad data
   }
 }
 
-function onDragOver(e) {
+function onDragOver(e, colKey) {
   e.preventDefault()
   e.dataTransfer.dropEffect = 'move'
+  dragOverCol.value = colKey
+}
+
+function onDragLeave(colKey) {
+  if (dragOverCol.value === colKey) {
+    dragOverCol.value = null
+  }
 }
 </script>
 
 <template>
   <div>
     <div class="flex justify-between items-center mb-6">
-      <h2 class="text-lg font-bold text-gray-900 dark:text-white">看板</h2>
+      <h2 class="text-lg font-bold text-gray-900 dark:text-white">📋 看板</h2>
       <button
         @click="openNew"
-        class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+        class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all"
       >
-        + 新建任务
+        ＋ 新建任务
       </button>
     </div>
 
@@ -87,34 +118,82 @@ function onDragOver(e) {
         v-for="col in statuses"
         :key="col.key"
         @drop="onDrop($event, col.key)"
-        @dragover="onDragOver"
-        class="bg-gray-100 dark:bg-gray-800/50 rounded-xl p-4 min-h-[300px]"
+        @dragover="onDragOver($event, col.key)"
+        @dragleave="onDragLeave(col.key)"
+        class="rounded-xl p-4 min-h-[300px] border-t-4 transition-all duration-200"
+        :class="[
+          statusColors[col.key],
+          dragOverCol === col.key
+            ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-400 shadow-inner scale-[1.01]'
+            : 'bg-gray-50 dark:bg-gray-800/30 border-gray-200 dark:border-gray-700',
+        ]"
       >
-        <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 uppercase tracking-wide">
-          {{ col.label }}
-          <span class="ml-1 text-xs font-normal text-gray-400">({{ getTasksByStatus(col.key).length }})</span>
+        <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+          <span>{{ col.label }}</span>
+          <span
+            class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-medium"
+            :class="{
+              'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300': col.key === 'todo',
+              'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300': col.key === 'in-progress',
+              'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300': col.key === 'done',
+            }"
+          >
+            {{ getTasksByStatus(col.key).length }}
+          </span>
         </h3>
 
-        <div class="space-y-3">
+        <TransitionGroup name="card" tag="div" class="space-y-3" appear>
           <TaskCard
             v-for="task in getTasksByStatus(col.key)"
             :key="task.id"
             :task="task"
             @edit="openEdit"
-            @delete="handleDelete"
+            @delete="askDelete"
             @dragstart="onDragStart"
+            @dragend="onDragEnd"
           />
-        </div>
+        </TransitionGroup>
 
         <div
           v-if="getTasksByStatus(col.key).length === 0"
-          class="text-center py-8 text-sm text-gray-400 dark:text-gray-500"
+          class="text-center py-10 text-sm text-gray-400 dark:text-gray-500"
         >
-          暂无任务
+          <div class="text-2xl mb-2 opacity-40">
+            {{ col.key === 'todo' ? '📝' : col.key === 'in-progress' ? '🔄' : '✅' }}
+          </div>
+          <p>暂无任务</p>
         </div>
       </div>
     </div>
 
     <TaskForm :task="editingTask" :visible="showForm" @close="showForm = false" @save="handleSave" />
+
+    <ConfirmDialog
+      :visible="confirmVisible"
+      title="删除任务"
+      :message="`确定要删除「${confirmTask?.title}」吗？此操作不可恢复。`"
+      confirmText="删除"
+      :danger="true"
+      @confirm="handleConfirmDelete"
+      @cancel="confirmVisible = false"
+    />
   </div>
 </template>
+
+<style scoped>
+.card-enter-active,
+.card-leave-active {
+  transition: all 0.3s ease;
+}
+.card-enter-from {
+  opacity: 0;
+  transform: translateY(-12px) scale(0.95);
+}
+.card-leave-to {
+  opacity: 0;
+  transform: translateX(30px) scale(0.95);
+}
+.card-move {
+  transition: transform 0.3s ease;
+}
+</style>
