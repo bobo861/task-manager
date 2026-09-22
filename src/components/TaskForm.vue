@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   task: { type: Object, default: null },
@@ -12,11 +12,13 @@ const formTitle = ref('')
 const formDescription = ref('')
 const formPriority = ref('medium')
 const isEditing = ref(false)
+const titleError = ref('')
 
 watch(
   () => props.visible,
   (v) => {
     if (v) {
+      titleError.value = ''
       isEditing.value = !!props.task
       formTitle.value = props.task?.title ?? ''
       formDescription.value = props.task?.description ?? ''
@@ -26,7 +28,11 @@ watch(
 )
 
 function handleSubmit() {
-  if (!formTitle.value.trim()) return
+  if (!formTitle.value.trim()) {
+    titleError.value = '标题不能为空'
+    return
+  }
+  titleError.value = ''
   emit('save', {
     id: props.task?.id,
     title: formTitle.value.trim(),
@@ -39,6 +45,17 @@ function handleSubmit() {
 function handleBackdrop(e) {
   if (e.target === e.currentTarget) emit('close')
 }
+
+// Keyboard shortcuts
+function onKeydown(e) {
+  if (!props.visible) return
+  if (e.key === 'Escape') {
+    emit('close')
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
@@ -60,11 +77,18 @@ function handleBackdrop(e) {
             </label>
             <input
               v-model="formTitle"
+              @input="titleError = ''"
               type="text"
               placeholder="输入任务标题"
-              class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              :class="[
+                'w-full px-3 py-2 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:border-transparent outline-none transition-all',
+                titleError
+                  ? 'border-red-400 dark:border-red-500 focus:ring-red-400'
+                  : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500',
+              ]"
               autofocus
             />
+            <p v-if="titleError" class="mt-1 text-xs text-red-500">{{ titleError }}</p>
           </div>
 
           <div>

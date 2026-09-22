@@ -12,12 +12,27 @@ const priorityColors = {
 }
 
 const priorityLabels = { high: '高', medium: '中', low: '低' }
+
+function formatTime(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hour = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  return `${month}-${day} ${hour}:${min}`
+}
 </script>
 
 <template>
   <div
-    class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing hover:-translate-y-0.5"
-    draggable="true"
+    :class="[
+      'bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5',
+      task.status === 'done'
+        ? 'opacity-75 cursor-default'
+        : 'cursor-grab active:cursor-grabbing',
+    ]"
+    :draggable="task.status !== 'done'"
     @dragstart="$emit('dragstart', $event, task)"
     @dragend="$emit('dragend', $event)"
   >
@@ -35,19 +50,22 @@ const priorityLabels = { high: '高', medium: '中', low: '低' }
       {{ task.description }}
     </p>
 
-    <div class="mt-2 flex items-center justify-end gap-1">
-      <button
-        @click.stop="$emit('edit', task)"
-        class="text-xs px-2 py-1 rounded text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-      >
-        编辑
-      </button>
-      <button
-        @click.stop="$emit('delete', task)"
-        class="text-xs px-2 py-1 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-      >
-        删除
-      </button>
+    <div class="mt-2 flex items-center justify-between gap-1">
+      <span class="text-[11px] text-gray-400 dark:text-gray-500">{{ formatTime(task.createdAt) }}</span>
+      <div class="flex items-center gap-1">
+        <button
+          @click.stop="$emit('edit', task)"
+          class="text-xs px-2 py-1 rounded text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        >
+          编辑
+        </button>
+        <button
+          @click.stop="$emit('delete', task)"
+          class="text-xs px-2 py-1 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+        >
+          删除
+        </button>
+      </div>
     </div>
   </div>
 </template>

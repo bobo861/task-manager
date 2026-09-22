@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -34,6 +34,15 @@ function handleCancel() {
 function handleBackdrop(e) {
   if (e.target === e.currentTarget) handleCancel()
 }
+
+// Keyboard shortcut
+function onKeydown(e) {
+  if (!localVisible.value) return
+  if (e.key === 'Escape') handleCancel()
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>

@@ -124,6 +124,11 @@ function handleClearCompleted() {
 }
 
 function onDragStart(e, task) {
+  // 已完成任务禁止拖拽
+  if (task.status === 'done') {
+    e.preventDefault()
+    return
+  }
   e.dataTransfer.setData('text/plain', JSON.stringify({ id: task.id, status: task.status }))
   e.dataTransfer.effectAllowed = 'move'
   e.target.classList.add('opacity-50')
@@ -140,6 +145,8 @@ function onDrop(e, targetStatus) {
   try {
     const data = JSON.parse(e.dataTransfer.getData('text/plain'))
     if (data.status !== targetStatus) {
+      // 不允许从「完成」列往回拖
+      if (data.status === 'done' && targetStatus !== 'done') return
       moveTask(data.id, targetStatus)
     }
   } catch {
@@ -216,6 +223,11 @@ function onDragLeave(colKey) {
     >
       搜索「{{ searchQuery }}」共找到
       <strong>{{ getFilteredTasks('todo').length + getFilteredTasks('in-progress').length + getFilteredTasks('done').length }}</strong> 个结果
+    </div>
+
+    <!-- Mobile hint -->
+    <div class="mb-3 text-xs text-center text-gray-400 dark:text-gray-500 md:hidden">
+      💡 拖拽功能在桌面端可用，移动端可点击编辑修改状态
     </div>
 
     <!-- Kanban columns -->
